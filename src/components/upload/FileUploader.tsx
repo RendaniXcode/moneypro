@@ -1,56 +1,107 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { FaUpload, FaFile, FaCheckCircle, FaTimesCircle, FaSpinner } from 'react-icons/fa';
+import { FaUpload, FaFile, FaCheckCircle, FaTimesCircle, FaSpinner, FaExclamationTriangle } from 'react-icons/fa';
 import { uploadToS3 } from '../../services/s3Service';
 
 interface FileWithStatus extends File {
   preview?: string;
   uploadProgress?: number;
-  status?: 'pending' | 'uploading' | 'success' | 'error';
+  status?: 'pending' | 'uploading' | 'success' | 'error' | 'validating';
   errorMessage?: string;
   url?: string;
 }
 
-const FileUploader = () => {
+// File validation constants
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const VALID_EXCEL_EXTENSIONS = ['.xlsx', '.xls'];
+const VALID_EXTENSIONS = {
+  'application/pdf': ['.pdf'],
+  'image/*': ['.png', '.jpg', '.jpeg', '.gif'],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+  'application/vnd.ms-excel': ['.xls'],
+  'text/csv': ['.csv']
+};
+
+const FileUploader = ({ onUploadSuccess = () => {} }) => {
   const [files, setFiles] = useState<FileWithStatus[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
+  // Validate file before accepting
+  const validateFile = (file: File): string | null => {
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      return `File size exceeds ${MAX_FILE_SIZE / (1024 * 1024)}MB limit`;
+    }
+
+    // Check file extension for Excel files (additional security for xlsx vulnerability)
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    if (file.type.includes('excel') && extension && !VALID_EXCEL_EXTENSIONS.includes(`.${extension}`)) {
+      return "Invalid Excel file format. Only .xlsx and .xls files are allowed.";
+    }
+
+    return null; // No error
+  };
+
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    const newFiles = acceptedFiles.map(file => Object.assign(file, {
-      preview: URL.createObjectURL(file),
-      uploadProgress: 0,
-      status: 'pending' as const
-    }));
+    const newFiles = acceptedFiles.map(file => {
+      const validationError = validateFile(file);
+
+      return Object.assign(file, {
+        preview: URL.createObjectURL(file),
+        uploadProgress: 0,
+        status: validationError ? 'error' : 'pending' as const,
+        errorMessage: validationError || undefined
+      });
+    });
 
     setFiles(prev => [...prev, ...newFiles]);
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: {
-      'application/pdf': ['.pdf'],
-      'image/*': ['.png', '.jpg', '.jpeg', '.gif'],
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-      'application/vnd.ms-excel': ['.xls'],
-      'text/csv': ['.csv']
-    },
-    maxSize: 50 * 1024 * 1024, // 50MB
+    accept: VALID_EXTENSIONS,
+    maxSize: MAX_FILE_SIZE,
   });
 
   const removeFile = (index: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
+    setFiles(prev => {
+      const newFiles = [...prev];
+      // Revoke object URL to avoid memory leaks
+      if (newFiles[index].preview) {
+        URL.revokeObjectURL(newFiles[index].preview!);
+      }
+      newFiles.splice(index, 1);
+      return newFiles;
+    });
   };
 
   const handleUpload = async () => {
     if (files.length === 0) return;
 
+    // Filter out files with errors
+    const validFiles = files.filter(file => file.status !== 'error');
+    if (validFiles.length === 0) return;
+
     setIsUploading(true);
+
+    let allSuccessful = true;
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      if (file.status === 'success') continue;
+      if (file.status === 'success' || file.status === 'error') continue;
 
       try {
+        // Update file status to validating first
+        setFiles(prev => prev.map((f, idx) =>
+            idx === i ? { ...f, status: 'validating' } : f
+        ));
+
+        // Additional validation before upload
+        const validationError = validateFile(file);
+        if (validationError) {
+          throw new Error(validationError);
+        }
+
         // Update file status to uploading
         setFiles(prev => prev.map((f, idx) =>
             idx === i ? { ...f, status: 'uploading' } : f
@@ -82,14 +133,32 @@ const FileUploader = () => {
               errorMessage: error instanceof Error ? error.message : 'Upload failed'
             } : f
         ));
+
+        allSuccessful = false;
       }
     }
 
     setIsUploading(false);
+
+    // Call the success callback if all files were uploaded successfully
+    if (allSuccessful && files.length > 0) {
+      onUploadSuccess();
+    }
   };
 
+  // Clean up previews when component unmounts
+  React.useEffect(() => {
+    return () => {
+      files.forEach(file => {
+        if (file.preview) {
+          URL.revokeObjectURL(file.preview);
+        }
+      });
+    };
+  }, [files]);
+
   return (
-      <div className="max-w-4xl mx-auto p-4">
+      <div className="max-w-4xl mx-auto">
         {/* Drop zone */}
         <div
             {...getRootProps()}
@@ -116,9 +185,9 @@ const FileUploader = () => {
 
                 <button
                     onClick={handleUpload}
-                    disabled={isUploading || files.every(f => f.status === 'success')}
+                    disabled={isUploading || files.every(f => f.status === 'success' || f.status === 'error')}
                     className={`px-4 py-2 rounded-md font-medium ${
-                        isUploading || files.every(f => f.status === 'success')
+                        isUploading || files.every(f => f.status === 'success' || f.status === 'error')
                             ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                             : 'bg-blue-600 hover:bg-blue-700 text-white'
                     }`}
@@ -140,8 +209,9 @@ const FileUploader = () => {
                       {/* Status icon */}
                       <div className="mr-3">
                         {file.status === 'uploading' && <FaSpinner className="text-blue-500 animate-spin" />}
+                        {file.status === 'validating' && <FaSpinner className="text-amber-500 animate-spin" />}
                         {file.status === 'success' && <FaCheckCircle className="text-green-500" />}
-                        {file.status === 'error' && <FaTimesCircle className="text-red-500" />}
+                        {file.status === 'error' && <FaExclamationTriangle className="text-red-500" />}
                         {file.status === 'pending' && <FaFile className="text-gray-400" />}
                       </div>
 
@@ -176,7 +246,7 @@ const FileUploader = () => {
                       </div>
 
                       {/* Remove button */}
-                      {file.status !== 'uploading' && (
+                      {file.status !== 'uploading' && file.status !== 'validating' && (
                           <button
                               onClick={() => removeFile(index)}
                               className="ml-2 text-gray-400 hover:text-red-500"

@@ -40,8 +40,8 @@ MoneyMind Pro is a comprehensive financial reports dashboard web application tha
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/moneymind-pro.git
-   cd moneymind-pro
+   git clone https://github.com/RendaniXcode/moneypro.git
+   cd moneypro
    ```
 
 2. Install dependencies:

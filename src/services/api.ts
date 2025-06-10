@@ -1,258 +1,254 @@
-import axios from 'axios'
+import axios from 'axios';
+import { apolloClient } from '../apolloClient';
+import { 
+  GET_FINANCIAL_REPORTS,
+  LIST_FINANCIAL_REPORTS,
+  GET_CURRENT_USER,
+  GetFinancialReportsQueryVariables,
+  ListFinancialReportsQueryVariables,
+  GetFinancialReportsQueryResult,
+  ListFinancialReportsQueryResult,
+  GetCurrentUserQueryResult
+} from '../graphql/queries';
+import {
+  LOGIN,
+  REGISTER,
+  CREATE_FINANCIAL_REPORTS,
+  UPDATE_FINANCIAL_REPORTS,
+  DELETE_FINANCIAL_REPORTS,
+  UPLOAD_FINANCIAL_STATEMENT,
+  LoginMutationVariables,
+  RegisterMutationVariables,
+  LoginMutationResult,
+  RegisterMutationResult,
+  CreateFinancialReportsMutationVariables,
+  UpdateFinancialReportsMutationVariables,
+  DeleteFinancialReportsMutationVariables,
+  UploadFinancialStatementMutationVariables
+} from '../graphql/mutations';
 
-// Mock financial report data
+// API configuration for REST endpoints
+const API_BASE_URL = 'https://api-gateway-endpoint.amazonaws.com/v1';
+const S3_UPLOAD_ENDPOINT = 'https://s3-upload-api.amazonaws.com';
+
+// Mock financial report data for fallback/development
 export const mockFinancialReport = {
-  "companyId": {
-    "S": "MULTICHOICE-001"
-  },
-  "reportDate": {
-    "S": "2024-04-15"
-  },
-  "companyName": {
-    "S": "MultiChoice Group"
-  },
-  "creditDecision": {
-    "S": "DECLINED"
-  },
-  "creditScore": {
-    "N": "82"
-  },
-  "financialRatios": {
-    "M": {
-      "efficiencyRatios": {
-        "M": {
-          "assetTurnoverRatio": {
-            "N": "0.74"
-          },
-          "inventoryTurnover": {
-            "N": "5.2"
-          }
+  companyId: { S: 'ACME123' },
+  reportDate: { S: new Date().toISOString() },
+  companyName: { S: 'ACME Corporation' },
+  creditDecision: { S: 'APPROVED' },
+  creditScore: { N: '78' },
+  industry: { S: 'Technology' },
+  lastUpdated: { S: new Date().toISOString() },
+  reportStatus: { S: 'PUBLISHED' },
+  financialRatios: {
+    M: {
+      liquidityRatios: {
+        M: {
+          currentRatio: { N: '2.5' },
+          quickRatio: { N: '1.8' }
         }
       },
-      "liquidityRatios": {
-        "M": {
-          "currentRatio": {
-            "N": "1.85"
-          },
-          "quickRatio": {
-            "N": "1.42"
-          }
+      profitabilityRatios: {
+        M: {
+          grossProfitMargin: { N: '0.45' },
+          operatingProfitMargin: { N: '0.22' },
+          returnOnAssets: { N: '0.18' }
         }
       },
-      "marketValueRatios": {
-        "M": {
-          "priceToEarnings": {
-            "N": "14.8"
-          }
+      solvencyRatios: {
+        M: {
+          debtToEquityRatio: { N: '0.8' },
+          interestCoverageRatio: { N: '8.5' }
         }
       },
-      "profitabilityRatios": {
-        "M": {
-          "grossProfitMargin": {
-            "N": "35.2"
-          },
-          "operatingProfitMargin": {
-            "N": "18.4"
-          },
-          "returnOnAssets": {
-            "N": "12.7"
-          }
+      efficiencyRatios: {
+        M: {
+          assetTurnoverRatio: { N: '0.9' },
+          inventoryTurnover: { N: '5.2' }
         }
       },
-      "solvencyRatios": {
-        "M": {
-          "debtToEquityRatio": {
-            "N": "0.68"
-          },
-          "interestCoverageRatio": {
-            "N": "8.5"
-          }
+      marketValueRatios: {
+        M: {
+          priceToEarnings: { N: '16.8' }
         }
       }
     }
   },
-  "industry": {
-    "S": "Media & Entertainment"
-  },
-  "lastUpdated": {
-    "S": "2024-04-15T10:30:00Z"
-  },
-  "performanceTrends": {
-    "L": [
+  performanceTrends: {
+    L: [
       {
-        "M": {
-          "debt": {
-            "N": "25"
-          },
-          "profit": {
-            "N": "30"
-          },
-          "revenue": {
-            "N": "45"
-          },
-          "year": {
-            "N": "1"
-          }
+        M: {
+          year: { N: '2019' },
+          revenue: { N: '1200000' },
+          profit: { N: '250000' },
+          debt: { N: '800000' }
         }
       },
       {
-        "M": {
-          "debt": {
-            "N": "26"
-          },
-          "profit": {
-            "N": "29"
-          },
-          "revenue": {
-            "N": "48"
-          },
-          "year": {
-            "N": "2"
-          }
+        M: {
+          year: { N: '2020' },
+          revenue: { N: '1350000' },
+          profit: { N: '280000' },
+          debt: { N: '750000' }
         }
       },
       {
-        "M": {
-          "debt": {
-            "N": "27"
-          },
-          "profit": {
-            "N": "28"
-          },
-          "revenue": {
-            "N": "52"
-          },
-          "year": {
-            "N": "3"
-          }
+        M: {
+          year: { N: '2021' },
+          revenue: { N: '1500000' },
+          profit: { N: '320000' },
+          debt: { N: '700000' }
         }
       },
       {
-        "M": {
-          "debt": {
-            "N": "28"
-          },
-          "profit": {
-            "N": "27"
-          },
-          "revenue": {
-            "N": "56"
-          },
-          "year": {
-            "N": "4"
-          }
-        }
-      },
-      {
-        "M": {
-          "debt": {
-            "N": "29"
-          },
-          "profit": {
-            "N": "26"
-          },
-          "revenue": {
-            "N": "62"
-          },
-          "year": {
-            "N": "5"
-          }
+        M: {
+          year: { N: '2022' },
+          revenue: { N: '1650000' },
+          profit: { N: '375000' },
+          debt: { N: '650000' }
         }
       }
     ]
   },
-  "recommendations": {
-    "L": [
-      {
-        "S": "Consider optimizing inventory management to improve the inventory turnover ratio."
-      },
-      {
-        "S": "Maintain the current debt management strategy as it provides a good balance between leverage and financial stability."
-      },
-      {
-        "S": "Explore opportunities to improve asset utilization to enhance the asset turnover ratio."
-      },
-      {
-        "S": "Continue investing in high-return content production to maintain competitive advantage."
-      },
-      {
-        "S": "Consider strategic acquisitions in emerging markets to diversify revenue streams."
-      }
+  recommendations: {
+    L: [
+      { S: 'Improve working capital management to further strengthen liquidity position' },
+      { S: 'Consider increasing dividend payouts as cash reserves are strong' },
+      { S: 'Explore opportunities to refinance long-term debt at lower interest rates' },
+      { S: 'Invest in inventory management systems to improve inventory turnover' }
     ]
-  },
-  "reportStatus": {
-    "S": "PUBLISHED"
   }
 };
 
-// Mock companies data
+// Mock companies for development and testing
 export const mockCompanies = [
-  { id: 'MULTICHOICE-001', name: 'MultiChoice Group', reportDate: '2024-04-15' },
-  { id: 'AMAZON-001', name: 'Amazon.com Inc.', reportDate: '2024-03-31' },
-  { id: 'NETFLIX-001', name: 'Netflix Inc.', reportDate: '2024-03-15' },
-  { id: 'SHOPRITE-001', name: 'Shoprite Holdings', reportDate: '2024-02-28' },
-  { id: 'MICROSOFT-001', name: 'Microsoft Corporation', reportDate: '2024-01-31' }
+  {
+    id: 'ACME123',
+    name: 'ACME Corporation',
+    reportDate: '2023-01-15T00:00:00.000Z'
+  },
+  {
+    id: 'GLOBEX456',
+    name: 'Globex Inc.',
+    reportDate: '2023-02-20T00:00:00.000Z'
+  },
+  {
+    id: 'STARK789',
+    name: 'Stark Industries',
+    reportDate: '2023-03-10T00:00:00.000Z'
+  }
 ];
 
-// Static data service that replaces API calls
+// Real data service that uses GraphQL queries
 export const dataService = {
-  // Get static financial report data
-  getFinancialReport: () => {
-    // Return a promise to mimic async behavior but use static data
-    return Promise.resolve(mockFinancialReport);
+  // Get financial report data from GraphQL API
+  getFinancialReport: async (companyId: string, reportDate: string) => {
+    try {
+      const { data } = await apolloClient.query<GetFinancialReportsQueryResult, GetFinancialReportsQueryVariables>({
+        query: GET_FINANCIAL_REPORTS,
+        variables: {
+          companyId,
+          reportDate
+        }
+      });
+      return data.getFinancialReports;
+    } catch (error) {
+      console.error('Error fetching financial report:', error);
+      throw error;
+    }
   },
   
-  // Get static list of companies
-  getAvailableCompanies: () => {
-    // Return a promise to mimic async behavior but use static data
-    return Promise.resolve(mockCompanies);
+  // Get list of companies from GraphQL API
+  getAvailableCompanies: async () => {
+    try {
+      const { data } = await apolloClient.query<ListFinancialReportsQueryResult, ListFinancialReportsQueryVariables>({
+        query: LIST_FINANCIAL_REPORTS,
+        variables: {
+          limit: 100
+        }
+      });
+
+      // Map the items to the format expected by the application
+      return data.listFinancialReports.items.map(item => ({
+        id: item.companyId,
+        name: item.companyName,
+        reportDate: item.reportDate
+      }));
+    } catch (error) {
+      console.error('Error fetching companies:', error);
+      throw error;
+    }
   },
   
-  // Mock authentication - always returns success
-  login: (credentials: { email: string; password: string }) => {
-    return Promise.resolve({
-      user: {
-        id: '1',
-        name: 'Demo User',
-        email: credentials.email,
-      },
-      token: 'demo-token-12345'
-    });
+  // Authentication with GraphQL API
+  login: async (credentials: { email: string; password: string }) => {
+    try {
+      const { data } = await apolloClient.mutate<LoginMutationResult, LoginMutationVariables>({
+        mutation: LOGIN,
+        variables: {
+          email: credentials.email,
+          password: credentials.password
+        }
+      });
+      
+      // Store the token in localStorage
+      if (data?.login.token) {
+        localStorage.setItem('auth_token', data.login.token);
+      }
+      
+      return data?.login;
+    } catch (error) {
+      console.error('Error during login:', error);
+      throw error;
+    }
   },
   
-  // Mock registration - always returns success
-  register: (userData: { name: string; email: string; password: string }) => {
-    return Promise.resolve({
-      user: {
-        id: '1',
-        name: userData.name,
-        email: userData.email,
-      },
-      token: 'demo-token-12345'
-    });
+  // Registration with GraphQL API
+  register: async (userData: { name: string; email: string; password: string }) => {
+    try {
+      const { data } = await apolloClient.mutate<RegisterMutationResult, RegisterMutationVariables>({
+        mutation: REGISTER,
+        variables: {
+          name: userData.name,
+          email: userData.email,
+          password: userData.password
+        }
+      });
+      
+      // Store the token in localStorage
+      if (data?.register.token) {
+        localStorage.setItem('auth_token', data.register.token);
+      }
+      
+      return data?.register;
+    } catch (error) {
+      console.error('Error during registration:', error);
+      throw error;
+    }
   },
   
-  // Mock user data
-  getCurrentUser: () => {
-    return Promise.resolve({
-      id: '1',
-      name: 'Demo User',
-      email: 'demo@example.com',
-      role: 'user'
-    });
+  // Get current user data
+  getCurrentUser: async () => {
+    try {
+      const { data } = await apolloClient.query<GetCurrentUserQueryResult>({
+        query: GET_CURRENT_USER
+      });
+      
+      return data.getCurrentUser;
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+      throw error;
+    }
   }
 };
-
-// API configuration
-const API_BASE_URL = 'https://api-gateway-endpoint.amazonaws.com/v1'
-const S3_UPLOAD_ENDPOINT = 'https://s3-upload-api.amazonaws.com'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-})
+});
 
 // Add request interceptor for auth token
 api.interceptors.request.use(
@@ -264,7 +260,7 @@ api.interceptors.request.use(
     return config
   },
   (error) => Promise.reject(error)
-)
+);
 
 // Add response interceptor for error handling
 api.interceptors.response.use(
@@ -275,107 +271,156 @@ api.interceptors.response.use(
     console.error('API Error:', errorMessage)
     return Promise.reject(error)
   }
-)
+);
 
-export default api
+export default api;
 
-// Reports API functions (keeping for reference, but using dataService instead)
+// Real Reports API functions using GraphQL
 export const reportsApi = {
   getReports: async (params?: Record<string, any>) => {
-    // Return mock data instead of making API call
-    return Promise.resolve({
-      reports: [],
-      total: 0,
-      page: 1,
-      limit: 10
-    });
+    try {
+      const { data } = await apolloClient.query<ListFinancialReportsQueryResult, ListFinancialReportsQueryVariables>({
+        query: LIST_FINANCIAL_REPORTS,
+        variables: {
+          filter: params?.filter,
+          limit: params?.limit || 10,
+          nextToken: params?.nextToken
+        }
+      });
+      
+      return {
+        reports: data.listFinancialReports.items,
+        total: data.listFinancialReports.items.length,
+        page: 1,
+        limit: params?.limit || 10,
+        nextToken: data.listFinancialReports.nextToken
+      };
+    } catch (error) {
+      console.error('Error fetching reports:', error);
+      throw error;
+    }
   },
   
   getReportById: async (companyId: string, reportDate: string) => {
-    // Return mock report data
-    return Promise.resolve(mockFinancialReport);
+    try {
+      const { data } = await apolloClient.query<GetFinancialReportsQueryResult, GetFinancialReportsQueryVariables>({
+        query: GET_FINANCIAL_REPORTS,
+        variables: {
+          companyId,
+          reportDate
+        },
+        fetchPolicy: 'network-only' // Skip cache to ensure fresh data
+      });
+      
+      return data.getFinancialReports;
+    } catch (error) {
+      console.error('Error fetching report by ID:', error);
+      throw error;
+    }
   },
   
-  createReport: async (data: any) => {
-    return Promise.resolve({ success: true });
+  createReport: async (reportData: any) => {
+    try {
+      const { data } = await apolloClient.mutate<any, CreateFinancialReportsMutationVariables>({
+        mutation: CREATE_FINANCIAL_REPORTS,
+        variables: {
+          input: reportData
+        }
+      });
+      
+      return data.createFinancialReports;
+    } catch (error) {
+      console.error('Error creating report:', error);
+      throw error;
+    }
   },
   
-  updateReport: async (companyId: string, reportDate: string, data: any) => {
-    return Promise.resolve({ success: true });
+  updateReport: async (companyId: string, reportDate: string, reportData: any) => {
+    try {
+      const { data } = await apolloClient.mutate<any, UpdateFinancialReportsMutationVariables>({
+        mutation: UPDATE_FINANCIAL_REPORTS,
+        variables: {
+          input: {
+            companyId,
+            reportDate,
+            ...reportData
+          }
+        }
+      });
+      
+      return data.updateFinancialReports;
+    } catch (error) {
+      console.error('Error updating report:', error);
+      throw error;
+    }
   },
   
   deleteReport: async (companyId: string, reportDate: string) => {
-    return Promise.resolve({ success: true });
+    try {
+      const { data } = await apolloClient.mutate<any, DeleteFinancialReportsMutationVariables>({
+        mutation: DELETE_FINANCIAL_REPORTS,
+        variables: {
+          input: {
+            companyId,
+            reportDate
+          }
+        }
+      });
+      
+      return data.deleteFinancialReports;
+    } catch (error) {
+      console.error('Error deleting report:', error);
+      throw error;
+    }
   },
   
   queryReports: async (filters: Record<string, any>) => {
-    return Promise.resolve({
-      reports: [],
-      total: 0
-    });
+    try {
+      const { data } = await apolloClient.query<ListFinancialReportsQueryResult, ListFinancialReportsQueryVariables>({
+        query: LIST_FINANCIAL_REPORTS,
+        variables: {
+          filter: filters,
+          limit: filters.limit || 100
+        }
+      });
+      
+      return {
+        reports: data.listFinancialReports.items,
+        total: data.listFinancialReports.items.length
+      };
+    } catch (error) {
+      console.error('Error querying reports:', error);
+      throw error;
+    }
   }
-}
-
-// Get the API key for S3 uploads
-const getS3ApiKey = () => {
-  return import.meta.env.VITE_S3_UPLOAD_API_KEY || 'demo-api-key';
-}
+};
 
 // Upload API functions for S3 integration
+// NOTE: The S3 upload functionality remains relatively unchanged
+// as it's using AWS SDK directly rather than the GraphQL API
 export const uploadApi = {
   // Get a presigned URL for direct S3 upload
   getPresignedUrl: async (fileName: string, fileType: string) => {
     try {
-      // For development/testing, return a mock presigned URL
-      if (import.meta.env.DEV) {
-        console.log('DEV mode: Using mock presigned URL');
-        
-        // Generate a unique file key with timestamp to avoid collisions
-        const timestamp = new Date().getTime();
-        const fileKey = `${timestamp}-${fileName}`;
-        
-        return { 
-          presignedUrl: `${S3_UPLOAD_ENDPOINT}/mock-upload/${fileKey}`, 
-          fileKey 
-        };
-      }
-      
-      // For production, make an actual API call
+      // Make an actual API call to get presigned URL
       const response = await api.post('/upload/presigned-url', {
         fileName,
         fileType,
-        // Add any other required parameters
+        bucket: import.meta.env.VITE_S3_BUCKET,
+        folder: import.meta.env.VITE_S3_FOLDER
       });
       
       return response.data;
     } catch (error) {
       console.error('Error getting presigned URL:', error);
-      
-      // Fallback for demo/development
-      const timestamp = new Date().getTime();
-      const fileKey = `${timestamp}-${fileName}`;
-      
-      return { 
-        presignedUrl: `${S3_UPLOAD_ENDPOINT}/mock-upload/${fileKey}`, 
-        fileKey 
-      };
+      throw new Error('Failed to get upload URL. Please try again.');
     }
   },
   
   // Upload file to S3 using the presigned URL
   uploadToS3: async (presignedUrl: string, file: File, onProgress: (progress: number) => void) => {
     try {
-      if (import.meta.env.DEV) {
-        // For development, simulate a gradual upload
-        await new Promise(resolve => setTimeout(() => { onProgress(25); resolve(null); }, 300));
-        await new Promise(resolve => setTimeout(() => { onProgress(50); resolve(null); }, 600));
-        await new Promise(resolve => setTimeout(() => { onProgress(75); resolve(null); }, 900));
-        await new Promise(resolve => setTimeout(() => { onProgress(100); resolve(null); }, 1200));
-        
-        return { success: true };
-      }
-      
-      // For production, use axios to upload the file with progress tracking
+      // Use axios to upload the file with progress tracking
       const uploadResponse = await axios.put(presignedUrl, file, {
         headers: {
           'Content-Type': file.type,
@@ -401,56 +446,35 @@ export const uploadApi = {
   // Notify backend that upload is complete and file should be processed
   notifyUploadComplete: async (fileKey: string, metadata?: Record<string, any>) => {
     try {
-      if (import.meta.env.DEV) {
-        // For development, return success immediately
-        console.log('DEV mode: Simulating successful upload notification');
-        return { success: true, fileKey };
-      }
-      
-      // For production, notify the backend
-      const response = await api.post('/upload/complete', {
-        fileKey,
-        metadata
+      // Notify the backend about completed upload
+      const response = await apolloClient.mutate<any, UploadFinancialStatementMutationVariables>({
+        mutation: UPLOAD_FINANCIAL_STATEMENT,
+        variables: {
+          input: metadata?.reportData || {},
+          fileKeys: [fileKey]
+        }
       });
       
-      return response.data;
-    } catch (error) {
-      console.error('Error notifying upload complete:', error);
-      
-      // For demo purposes, return success even on error
-      return { 
+      return {
         success: true,
         fileKey,
-        demo: true
+        reportData: response.data?.createFinancialReports
       };
+    } catch (error) {
+      console.error('Error notifying upload complete:', error);
+      throw new Error('Failed to process uploaded file. Please try again.');
     }
   },
   
   // Get the status of file processing
   getFileProcessingStatus: async (fileKey: string) => {
     try {
-      if (import.meta.env.DEV) {
-        // For development, return mock processing status
-        return { 
-          status: 'completed',
-          progress: 100,
-          fileKey
-        };
-      }
-      
-      // For production, check with the backend
+      // Check with the backend for file processing status
       const response = await api.get(`/upload/status/${fileKey}`);
       return response.data;
     } catch (error) {
       console.error('Error getting file processing status:', error);
-      
-      // For demo purposes, return completed status
-      return { 
-        status: 'completed',
-        progress: 100,
-        fileKey,
-        demo: true
-      };
+      throw new Error('Failed to check file processing status. Please try again.');
     }
   }
-}
+};
